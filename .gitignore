@@ -1,0 +1,35 @@
+# Node
+node_modules/
+dist/
+dist-ssr/
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.egg-info/
+.venv/
+venv/
+env/
+
+# Backend Secrets & DB
+backend/.env
+backend/.env.*
+backend/*.db
+backend/self_rag.db
+backend/self_rag.db-journal
+backend/temp_uploads/
+
+# OS Files
+.DS_Store
+Thumbs.db
+
+# IDEs
+.vscode/
+!.vscode/extensions.json
+.idea/
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.sw?
