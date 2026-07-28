@@ -157,7 +157,7 @@ export default function DatasetsPage() {
                 <input 
                   type="file" 
                   className="hidden" 
-                  accept=".pdf,.docx,.txt,.md"
+                  accept=".pdf,.docx,.pptx,.xlsx,.txt,.md,.html"
                   onChange={handleFileUpload}
                   disabled={uploadMutation.isPending}
                 />
