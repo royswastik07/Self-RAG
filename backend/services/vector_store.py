@@ -34,10 +34,14 @@ class VectorStore:
     async def upsert_points(self, points: List[PointStruct], embedding_model: str = "BAAI/bge-small-en-v1.5"):
         await self.initialize_collection(embedding_model)
         collection_name = self.get_collection_name(embedding_model)
-        await self.client.upsert(
-            collection_name=collection_name,
-            points=points
-        )
+        
+        batch_size = 100
+        for i in range(0, len(points), batch_size):
+            batch = points[i:i+batch_size]
+            await self.client.upsert(
+                collection_name=collection_name,
+                points=batch
+            )
 
     async def search(self, query_vector: List[float], limit: int = 20, dataset_id: int = None, embedding_model: str = "BAAI/bge-small-en-v1.5") -> List[ScoredPoint]:
         collection_name = self.get_collection_name(embedding_model)
@@ -58,5 +62,18 @@ class VectorStore:
             query_filter=qfilter
         )
         return response.points
+
+    async def delete_dataset_points(self, dataset_id: int, embedding_model: str = "BAAI/bge-small-en-v1.5"):
+        collection_name = self.get_collection_name(embedding_model)
+        collections = await self.client.get_collections()
+        if any(c.name == collection_name for c in collections.collections):
+            await self.client.delete(
+                collection_name=collection_name,
+                points_selector=Filter(
+                    must=[
+                        FieldCondition(key="dataset_id", match=MatchValue(value=dataset_id))
+                    ]
+                )
+            )
 
 vector_store = VectorStore()

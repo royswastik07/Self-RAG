@@ -43,6 +43,9 @@ async def process_document(
     chunk_size = chunk_size or settings.CHUNK_SIZE
     chunk_overlap = chunk_overlap or settings.CHUNK_OVERLAP
 
+    if chunk_overlap >= chunk_size:
+        raise ValueError(f"Chunk overlap ({chunk_overlap}) must be strictly smaller than chunk size ({chunk_size}).")
+
     # 1. Create DB Document
     db_doc = Document(
         dataset_id=dataset_id, 

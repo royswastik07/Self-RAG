@@ -16,6 +16,11 @@ export const createDataset = async (name: string) => {
   return res.data;
 };
 
+export const deleteDataset = async (datasetId: number) => {
+  const res = await api.delete(`/datasets/${datasetId}`);
+  return res.data;
+};
+
 export const uploadDocument = async (
   datasetId: number, 
   file: File, 

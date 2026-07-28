@@ -17,6 +17,7 @@ from services.ingestion import process_document
 from services.retrieval import retrieval_service
 from services.generation import generation_service
 from services.reflection import reflection_service
+from services.vector_store import vector_store
 from core.config import settings
 
 router = APIRouter()
@@ -60,6 +61,29 @@ async def get_datasets(db: AsyncSession = Depends(get_db)):
             chunk_count=chunk_count or 0
         ))
     return response
+
+@router.delete("/datasets/{dataset_id}")
+async def delete_dataset(dataset_id: int, db: AsyncSession = Depends(get_db)):
+    result = await db.execute(select(Dataset).where(Dataset.id == dataset_id))
+    dataset = result.scalar_one_or_none()
+    if not dataset:
+        raise HTTPException(status_code=404, detail="Dataset not found")
+        
+    # Get all distinct embedding models used by this dataset's documents
+    models_result = await db.execute(select(Document.embedding_model).where(Document.dataset_id == dataset_id).distinct())
+    embedding_models = [m for m in models_result.scalars().all() if m]
+    if not embedding_models:
+        embedding_models = ["BAAI/bge-small-en-v1.5"]
+        
+    # Delete points from Qdrant for each collection
+    for model in embedding_models:
+        await vector_store.delete_dataset_points(dataset_id, model)
+        
+    # Delete from Postgres (CASCADE will handle documents, chunks, etc)
+    await db.delete(dataset)
+    await db.commit()
+    
+    return {"message": "Dataset deleted successfully"}
 
 @router.get("/stats")
 async def get_stats(db: AsyncSession = Depends(get_db)):
@@ -109,6 +133,8 @@ async def upload_document(
             chunk_method=chunk_method,
             embedding_model=embedding_model
         )
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
     finally:
         if os.path.exists(file_path):
             os.remove(file_path)

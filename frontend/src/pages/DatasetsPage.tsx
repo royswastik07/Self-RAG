@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { getDatasets, createDataset, uploadDocument } from '../services/api';
-import { Upload, Plus, FileText, Loader2, Database } from 'lucide-react';
+import { getDatasets, createDataset, uploadDocument, deleteDataset } from '../services/api';
+import { Upload, Plus, FileText, Loader2, Database, Trash2 } from 'lucide-react';
 
 export default function DatasetsPage() {
   const queryClient = useQueryClient();
@@ -27,18 +27,38 @@ export default function DatasetsPage() {
     },
   });
 
+  const deleteMutation = useMutation({
+    mutationFn: deleteDataset,
+    onSuccess: (_, deletedId) => {
+      queryClient.invalidateQueries({ queryKey: ['datasets'] });
+      if (selectedDataset === deletedId) {
+        setSelectedDataset(null);
+      }
+    },
+    onError: () => {
+      alert('Failed to delete dataset.');
+    }
+  });
+
   const uploadMutation = useMutation({
     mutationFn: ({ id, file, options }: { id: number, file: File, options: any }) => uploadDocument(id, file, options),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['datasets'] });
       alert('File uploaded successfully!');
     },
-    onError: () => {
-      alert('Failed to upload file.');
+    onError: (error: any) => {
+      const msg = error.response?.data?.detail || error.message || 'Failed to upload file.';
+      alert(`Upload Failed: ${msg}`);
     }
   });
 
   const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (chunkOverlap >= chunkSize) {
+      alert(`Chunk Overlap (${chunkOverlap}) must be strictly smaller than Chunk Size (${chunkSize}).`);
+      e.target.value = '';
+      return;
+    }
+
     if (e.target.files && e.target.files.length > 0 && selectedDataset) {
       uploadMutation.mutate({ 
         id: selectedDataset, 
@@ -87,17 +107,35 @@ export default function DatasetsPage() {
                 <div
                   key={ds.id}
                   onClick={() => setSelectedDataset(ds.id)}
-                  className={`p-4 rounded-xl cursor-pointer border transition-all ${
+                  className={`p-4 rounded-xl cursor-pointer border transition-all flex justify-between items-center group ${
                     selectedDataset === ds.id
                       ? 'border-emerald-500 bg-emerald-50 shadow-sm'
                       : 'border-slate-100 hover:border-slate-300 hover:bg-white/50'
                   }`}
                 >
-                  <h3 className="font-semibold text-slate-800">{ds.name}</h3>
-                  <div className="text-xs text-slate-500 flex gap-4 mt-2">
-                    <span>{ds.document_count} docs</span>
-                    <span>{ds.chunk_count} chunks</span>
+                  <div>
+                    <h3 className="font-semibold text-slate-800">{ds.name}</h3>
+                    <div className="text-xs text-slate-500 flex gap-4 mt-2">
+                      <span>{ds.document_count} docs</span>
+                      <span>{ds.chunk_count} chunks</span>
+                    </div>
                   </div>
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      if (window.confirm(`Are you sure you want to delete "${ds.name}"? This will delete all its documents, chunks, and vector data permanently.`)) {
+                        deleteMutation.mutate(ds.id);
+                      }
+                    }}
+                    className="p-2 text-slate-400 hover:text-red-500 hover:bg-red-50 rounded-lg opacity-0 group-hover:opacity-100 transition-all"
+                    title="Delete dataset"
+                  >
+                    {deleteMutation.isPending && deleteMutation.variables === ds.id ? (
+                      <Loader2 className="w-4 h-4 animate-spin" />
+                    ) : (
+                      <Trash2 className="w-4 h-4" />
+                    )}
+                  </button>
                 </div>
               ))
             )}
