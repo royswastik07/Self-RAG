@@ -16,6 +16,7 @@ class Settings(BaseSettings):
     # Groq
     GROQ_API_KEY: str = ""
     LLM_MODEL: str = "llama-3.3-70b-versatile"
+    VISION_LLM_MODEL: str = "meta-llama/llama-4-scout-17b-16e-instruct"
     
     # RAG Settings
     CHUNK_SIZE: int = 1000

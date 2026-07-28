@@ -4,6 +4,7 @@ from typing import List, Dict, Any
 from sqlalchemy.ext.asyncio import AsyncSession
 from qdrant_client.models import PointStruct
 from markitdown import MarkItDown
+from openai import OpenAI
 from langchain_text_splitters import RecursiveCharacterTextSplitter, CharacterTextSplitter
 
 from database.models import Document, ChunkMetadata
@@ -20,23 +21,54 @@ SUPPORTED_TYPES = {
     "text/plain",
     "text/markdown",
     "text/html",
+    # Image types — handled via Vision LLM
+    "image/jpeg",
+    "image/png",
+    "image/gif",
+    "image/webp",
+    "image/bmp",
 }
+
+# Image MIME types that require Vision LLM
+IMAGE_TYPES = {"image/jpeg", "image/png", "image/gif", "image/webp", "image/bmp"}
+
+
+def _build_md_converter() -> MarkItDown:
+    """Build a MarkItDown instance, wiring in the Groq Vision LLM if configured.
+    
+    The Vision LLM is used to generate rich textual descriptions for:
+    - Standalone image uploads (.jpg, .png, etc.)
+    - Images, charts, and diagrams embedded inside PDFs, DOCX, and PPTX files.
+    """
+    if settings.GROQ_API_KEY:
+        vision_client = OpenAI(
+            api_key=settings.GROQ_API_KEY,
+            base_url="https://api.groq.com/openai/v1"
+        )
+        return MarkItDown(
+            llm_client=vision_client,
+            llm_model=settings.VISION_LLM_MODEL
+        )
+    # Fallback: no LLM — images inside documents will be silently skipped
+    return MarkItDown()
+
 
 def extract_text_from_file(file_path: str, file_type: str) -> str:
     """Convert any uploaded document to structured Markdown for RAG-optimized chunking.
     
     Uses Microsoft's MarkItDown to intelligently parse layout, tables, headers,
-    and multi-column formats — rather than a naive top-to-bottom text extraction.
+    and multi-column formats.  When a Groq API key is configured, images and
+    embedded visuals are described by a Vision LLM (Llama-4 Scout).
     """
     if file_type not in SUPPORTED_TYPES:
-        raise ValueError(f"Unsupported file type: {file_type}. Supported types: {', '.join(SUPPORTED_TYPES)}")
+        raise ValueError(f"Unsupported file type: {file_type}. Supported types: {', '.join(sorted(SUPPORTED_TYPES))}")
     
-    md_converter = MarkItDown()
+    md_converter = _build_md_converter()
     result = md_converter.convert(file_path)
     
     text = result.text_content.strip()
     if not text:
-        raise ValueError(f"No text could be extracted from '{file_path}'. The document may be empty or image-only.")
+        raise ValueError(f"No text could be extracted from the file. It may be empty or corrupted.")
     
     return text
 
